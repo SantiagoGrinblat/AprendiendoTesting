@@ -22,11 +22,21 @@ import kotlin.test.assertEquals
 
 class CarritoVersionProTest {
   
+  //usamos private lateinit var =
+  //con private -> hacemos que sea solo accesible dentro de esta clase de test, nadie de afuera puede tocarlas
+  //con lateinit -> le decimos a Kotlin "esta variable va a existir pero la voy a inicializar despues".
+  //sin lateinit Kotlin te obligaria a darle un valor en el momento de declarar, pero todavia no tenemos los mocks creados.
+  //y var -> tiene que ser variable porque se va a asignar en el @Before
   private lateinit var carritoVersionPro: CarritoVersionPro
   private lateinit var pagoService: PagoService
   private lateinit var stockService: StockService
   private lateinit var descuentoService: DescuentoService
   
+  //con el before y los mockks podemos =
+  //hacer que se ejecute antes de cada test automaticamente
+  //crear instancias nuevas y limpias de cada mock.
+  //crear una instancia nueva del carrito con esos mocks inyectados
+  //y garantiza que ningun test afecte al siguiente
   @Before
   fun setUp() {
     pagoService = mockk()
@@ -36,8 +46,8 @@ class CarritoVersionProTest {
   }
   
   //para entender perfecto como funciona la secuencia que se debe seguir para probar un test es:
-  //orden correcto del pago: agrego, verifico, pago, reduzco, finalizo.
-  //si cambia el orden el test falla SIEMPRE
+  //orden correcto del pago: agrego, verifico stock, pago, reduzco stock, finalizo compra.
+  //si cambia el orden el test falla
   
   //VALIDACIONES DE ENTRADA =
   //estos test validan que no entren datos invalidos al carrito
@@ -64,7 +74,7 @@ class CarritoVersionProTest {
   //GESTION DE PRODUCTOS =
   //Test que estan relacionado con agregar productos
   @Test
-  fun `verificamos si se pueden aumantar la cantidad de un producto`() {
+  fun `verificamos si se pueden aumantar las cantidades de un producto`() {
     //arrange
     carritoVersionPro.agregarProducto(Producto(32, "Mate", 50.0, 1))
     carritoVersionPro.agregarProducto(Producto(32, "Mate", 50.0, 1))
@@ -91,7 +101,7 @@ class CarritoVersionProTest {
   //CALCULOS DE TOTALES =
   //primero los calculos simples
   @Test
-  fun `hay stock, pago aprobado, cupon valido, se actualiza el precio con el descuento aplicado`() {
+  fun `si hay stock, el pago es aprobado y si el cupon es valido, se actualiza el precio con el descuento aplicado`() {
     //arrange
     carritoVersionPro.agregarProducto(Producto(5, "Mesa", 50.0, 1))
     
@@ -135,7 +145,7 @@ class CarritoVersionProTest {
   }
   
   @Test
-  fun `descuento negativo en el cupon tira excepcion`() {
+  fun `descuento con valor negativo en el cupon tira excepcion`() {
     carritoVersionPro.agregarProducto(Producto(8, "Termo", 50.0, 4))
     
     every { descuentoService.validarCupon("ERROR") } returns -30.0
@@ -146,7 +156,7 @@ class CarritoVersionProTest {
   }
   
   @Test
-  fun `si el cupon es mayor al 100% del producto, tira una excepcion`() {
+  fun `si el cupon es mayor al 100% del precio del producto, tira una excepcion`() {
     carritoVersionPro.agregarProducto(Producto(1, "Mesa", 100.0, 1))
     
     every { descuentoService.validarCupon("DESCUENTO105") } returns 105.0
@@ -159,7 +169,7 @@ class CarritoVersionProTest {
   //DESCUENTOS DINAMICOS =
   //con answers
   @Test
-  fun `simular un descuento dinamico segun el cupon`() {
+  fun `simulamos un descuento dinamico segun el cupon`() {
     carritoVersionPro.agregarProducto(Producto(3, "Mesa", 60.0, 3))
     carritoVersionPro.agregarProducto(Producto(4, "Silla", 90.0, 1))
     
@@ -179,6 +189,9 @@ class CarritoVersionProTest {
     
     TestCase.assertEquals(243.0, resultadoConDescuentoDe10)
     TestCase.assertEquals(135.0, resultadoConDescuentoDe50)
+    
+    //se podria tambien usar rangos, pero el queremos que el descuento del cupon sea de un monto exacto.
+    //si se podria agregar mas descuento si tenemos mas productos.
   }
   
   //FLUJO DE STOCK =
@@ -231,7 +244,7 @@ class CarritoVersionProTest {
   }
   
   @Test
-  fun `hay stock, pero el pago falla, entonces devuelve false`() {
+  fun `si hay stock, pero el pago falla, entonces devolvemos false`() {
     //arrange
     carritoVersionPro.agregarProducto(Producto(4, "Mesa", 50.0, 1))
     
@@ -250,7 +263,7 @@ class CarritoVersionProTest {
   }
   
   @Test
-  fun `pago lanza una excepcion`() {
+  fun `si falla el pago lanza una excepcion`() {
     //arrange
     carritoVersionPro.agregarProducto(Producto(2, "Mesa", 50.0, 1))
     
@@ -265,12 +278,12 @@ class CarritoVersionProTest {
     
     verify(exactly = 1) { pagoService.procesarPago(any()) }
     verify(exactly = 0) { stockService.reducirStock(any(), any()) }
-    //el pago se intento 1 vez pero lanzó una excepción
-    //como fallo, el stock nunca se redujo
   }
   
   //CAPTURA DE ARGUEMNTOS =
   //usamos slot
+  //slot se podria usar para caputar cualquier tipo de dato que querramos, pero ahora solo lo vamos
+  //a usar para casos simples de uso el monto y el id del prodcuto
   @Test
   fun `usamos slot para capturar el monto del pago`() {
     //arrange
@@ -320,28 +333,27 @@ class CarritoVersionProTest {
   
   //verifyOrder =
   //sirve para verificar el ORDEN EXACTO en que se llamaron los metodos.
-  //Eso solo confirma que: “se llamo”.
-  //Pero NO confirma: cuando, en quw orden, si fue antes o despues de otra cosa
-  //Y ahi entra verifyOrder.
+  //eso solo confirma que: “se llamo”.
+  //pero NO confirma: cuando, en que orden, si fue antes o despues de otra cosa
   
-  //Problema real que resuelve
-  //Imaginate este flujo:
+  //problema real que resuelve
+  //imaginate este flujo:
   // 1 verificar stock
   // 2 procesar pago
   // 3 reducir stock
   
-  //Ese es el flujo correcto.
-  //Pero, que pasa si el codigo hace esto? :
+  //ese es el flujo correcto.
+  //pero, que pasa si el codigo hace esto? :
   // 1 reducir stock
   // 2 procesar pago
   // 3 verificar stock
-  //Si el test estuviera con con verify(exactly) PASA IGUAL.
-  //Porque los metodos SI fueron llamados.
-  //El problema: fueron llamados MAL.
+  //si el test estuviera con con verify(exactly) PASA IGUAL.
+  //porque los metodos SI fueron llamados.
+  //el problema: fueron llamados MAL.
   
   //con verifyOrder
   //MockK verifica: primero stock, despues pago, despues reduccion
-  //Si el orden cambia: el test falla.
+  //si el orden cambia: el test falla.
   //funciona exactamente por que lo que es un verificador de orden exacto
   
   //esto es muy importante cuando el orden SI IMPORTA. en casos como BANCOS, ECOMMERCES LOGIN ETC...
