@@ -13,8 +13,11 @@ class CarritoVersionPro(
     if (producto.cantidad <= 0) throw IllegalArgumentException("Cantidad invalida")
     val existente = productosItems.find { it.id == producto.id }
     if (existente != null) {
+      if (existente.precio != producto.precio) {
+        throw IllegalArgumentException("El producto ya existe con un precio diferente")
+      }
       val index = productosItems.indexOf(existente)
-      productosItems[index] = existente.copy(cantidad = existente.cantidad + 1)
+      productosItems[index] = existente.copy(cantidad = existente.cantidad + producto.cantidad)
     } else {
       productosItems.add(producto)
     }

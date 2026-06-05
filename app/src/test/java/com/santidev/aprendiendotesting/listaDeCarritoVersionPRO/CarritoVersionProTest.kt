@@ -66,6 +66,15 @@ class CarritoVersionProTest {
   }
   
   @Test
+  fun `agregar el mismo producto con distinto precio lanza excepcion`() {
+    carritoVersionPro.agregarProducto(Producto(1, "Mesa", 50.0, 1))
+    
+    assertThrows<IllegalArgumentException> {
+      carritoVersionPro.agregarProducto(Producto(1, "Mesa", 99.0, 1))
+    }
+  }
+  
+  @Test
   fun `si el carrito esta vacio, no se realiza la compra y tira una excepcio`() {
     //No se agrega ningun producto, se intenta la compra directamente
     assertThrows<IllegalArgumentException> { carritoVersionPro.realizarCompra() }
