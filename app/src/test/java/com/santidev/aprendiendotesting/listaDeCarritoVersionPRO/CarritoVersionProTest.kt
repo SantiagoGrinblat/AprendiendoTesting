@@ -49,6 +49,54 @@ class CarritoVersionProTest {
   //orden correcto del pago: agrego, verifico stock, pago, reduzco stock, finalizo compra.
   //si cambia el orden el test falla
   
+  //CAPTURA DE ARGUEMNTOS =
+  //usamos slot
+  //slot se podria usar para caputar cualquier tipo de dato que querramos, pero ahora solo lo vamos
+  //a usar para casos simples de uso el monto y el id del prodcuto
+  @Test
+  fun `usamos slot para capturar el monto del pago`() {
+    //arrange
+    carritoVersionPro.agregarProducto(Producto(2, "Mesa", 50.0, 1))
+    
+    val slot = slot<Double>()
+    
+    every { stockService.verificarStock(2, 1) } returns true
+    every { pagoService.procesarPago(capture(slot)) } returns true // ← capturás acá
+    every { stockService.reducirStock(2, 1) } just runs
+    
+    // Act
+    carritoVersionPro.realizarCompra()
+    
+    // Assert
+    assertEquals(50.0, slot.captured) // ← verificás después de realizarCompra
+    
+    verifyOrder {
+      stockService.verificarStock(2, 1)
+      pagoService.procesarPago(50.0)
+      stockService.reducirStock(2, 1)
+    }
+  }
+  
+  @Test
+  fun `capturamos con slot el productId que se paso a reducirStock`() {
+    //arrange
+    carritoVersionPro.agregarProducto(Producto(6, "Mesa", 50.0, 2))
+    
+    val slot = slot<Int>()
+    
+    every { stockService.verificarStock(6, 2) } returns true
+    every { pagoService.procesarPago(any()) } returns true
+    every { stockService.reducirStock(capture(slot), any()) } just runs
+    
+    //act
+    carritoVersionPro.realizarCompra()
+    
+    //assert
+    assertEquals(6, slot.captured)
+    println("el id del producto que se redujo es: ${slot.captured}")
+    verify(exactly = 1) { stockService.reducirStock(6, any()) }
+  }
+  
   //VALIDACIONES DE ENTRADA =
   //estos test validan que no entren datos invalidos al carrito
   @Test
@@ -76,7 +124,7 @@ class CarritoVersionProTest {
   
   @Test
   fun `si el carrito esta vacio, no se realiza la compra y tira una excepcio`() {
-    //No se agrega ningun producto, se intenta la compra directamente
+    //no se agrega ningun producto, se intenta la compra directamente
     assertThrows<IllegalArgumentException> { carritoVersionPro.realizarCompra() }
   }
   
@@ -90,12 +138,10 @@ class CarritoVersionProTest {
     
     //act
     every { stockService.verificarStock(32, 2) } returns true
-    DriverManager.println("vemos si se agrego el producto: " +
-        "${stockService.verificarStock(productoId = 32, 2)}"
-    )
+    println("vemos si se agrego el producto: " + "${stockService.verificarStock(productoId = 32, 2)}")
     
-    TestCase.assertEquals(100.0, carritoVersionPro.calcularTotal())
-    DriverManager.println("Se agregaron ambos productos por eso el total es: ${carritoVersionPro.calcularTotal()}")
+    assertEquals(100.0, carritoVersionPro.calcularTotal())
+    println("se agregaron ambos productos por eso el total es: ${carritoVersionPro.calcularTotal()}")
     
     verify(exactly = 1) { stockService.verificarStock(32, 2) }
     
@@ -104,7 +150,15 @@ class CarritoVersionProTest {
     every { stockService.reducirStock(32, 2) } just runs
     
     //assert
-    TestCase.assertEquals(true, carritoVersionPro.realizarCompra())
+    assertEquals(true, carritoVersionPro.realizarCompra())
+  }
+  
+  @Test
+  fun `agregamos dos productos distintos y verificamos que hay 2 productos en el carrito`() {
+    carritoVersionPro.agregarProducto(Producto(1, "Mesa", 50.0, 1))
+    carritoVersionPro.agregarProducto(Producto(2, "Silla", 30.0, 1))
+    
+    assertEquals(80.0, carritoVersionPro.calcularTotal())
   }
   
   //CALCULOS DE TOTALES =
@@ -120,7 +174,12 @@ class CarritoVersionProTest {
     //el nombre del cupon debe ser exactamente el mismo que esta en validarCupon
     
     //assert
-    TestCase.assertEquals(45.0, carritoVersionPro.calcularTotalConDescuento("DESCUENTO10"))
+    assertEquals(45.0, carritoVersionPro.calcularTotalConDescuento("DESCUENTO10"))
+  }
+  
+  @Test
+  fun `Si el carrito esta vacio, el calculo total de eso nos da 0`() {
+    assertEquals(0.0, carritoVersionPro.calcularTotal(), 0.001)
   }
   
   //VALIDACIONES DE CUPONES =
@@ -165,7 +224,7 @@ class CarritoVersionProTest {
   }
   
   @Test
-  fun `si el cupon es mayor al 100% del precio del producto, tira una excepcion`() {
+  fun `si el cupon es mayor al 100 del precio del producto, tira una excepcion`() {
     carritoVersionPro.agregarProducto(Producto(1, "Mesa", 100.0, 1))
     
     every { descuentoService.validarCupon("DESCUENTO105") } returns 105.0
@@ -196,8 +255,8 @@ class CarritoVersionProTest {
     val resultadoConDescuentoDe10 = carritoVersionPro.calcularTotalConDescuento("DESCUENTO10")
     val resultadoConDescuentoDe50 = carritoVersionPro.calcularTotalConDescuento("DESCUENTO50")
     
-    TestCase.assertEquals(243.0, resultadoConDescuentoDe10)
-    TestCase.assertEquals(135.0, resultadoConDescuentoDe50)
+    assertEquals(243.0, resultadoConDescuentoDe10)
+    assertEquals(135.0, resultadoConDescuentoDe50)
     
     //se podria tambien usar rangos, pero el queremos que el descuento del cupon sea de un monto exacto.
     //si se podria agregar mas descuento si tenemos mas productos.
@@ -211,14 +270,27 @@ class CarritoVersionProTest {
     carritoVersionPro.agregarProducto(Producto(3, "Silla", 50.0, 6))
     
     //act
-    every {
-      stockService.verificarStock(
-        3,
-        6
-      )
-    } throws IllegalArgumentException("No hay esa cantidad en stock")
+    every { stockService.verificarStock(3, 6) } throws IllegalArgumentException("No hay esa cantidad en stock")
     
     //assert
+    assertThrows<IllegalArgumentException> { carritoVersionPro.realizarCompra() }
+    
+    verify(exactly = 0) { pagoService.procesarPago(any()) }
+    verify(exactly = 0) { stockService.reducirStock(any(), any()) }
+  }
+  
+  @Test
+  fun `multiples productos, uno sin stock, no se procesa el pago`() {
+    carritoVersionPro.agregarProducto(Producto(8, "Escritorio", 100.0, 2))
+    carritoVersionPro.agregarProducto(Producto(2, "Auriculares", 40.0, 2))
+    carritoVersionPro.agregarProducto(Producto(5, "Pantalla", 80.0, 2))
+    
+    every { stockService.verificarStock(8, 2) } returns true
+    every { stockService.verificarStock(2, 2) } returns true
+    every { stockService.verificarStock(5, 2) } returns false // <- sin stock
+    //se agrega la cantidad del producto, pero es como que lo paras y decis:
+    //NO, de este producto no tenemos mas
+    
     assertThrows<IllegalArgumentException> { carritoVersionPro.realizarCompra() }
     
     verify(exactly = 0) { pagoService.procesarPago(any()) }
@@ -249,7 +321,7 @@ class CarritoVersionProTest {
     //equivalente a returns pero para funciones que no tienen valor de retorno
     
     //finaliza la compra
-    TestCase.assertEquals(true, carritoVersionPro.realizarCompra())
+    assertEquals(true, carritoVersionPro.realizarCompra())
   }
   
   @Test
@@ -262,7 +334,7 @@ class CarritoVersionProTest {
     every { pagoService.procesarPago(50.0) } returns false
     
     //assert
-    TestCase.assertEquals(false, carritoVersionPro.realizarCompra())
+    assertEquals(false, carritoVersionPro.realizarCompra())
     
     //el pago se intento al menos 1 vez (devolvio false, pero se llamo)
     verify(exactly = 1) { pagoService.procesarPago(any()) }
@@ -287,54 +359,6 @@ class CarritoVersionProTest {
     
     verify(exactly = 1) { pagoService.procesarPago(any()) }
     verify(exactly = 0) { stockService.reducirStock(any(), any()) }
-  }
-  
-  //CAPTURA DE ARGUEMNTOS =
-  //usamos slot
-  //slot se podria usar para caputar cualquier tipo de dato que querramos, pero ahora solo lo vamos
-  //a usar para casos simples de uso el monto y el id del prodcuto
-  @Test
-  fun `usamos slot para capturar el monto del pago`() {
-    //arrange
-    carritoVersionPro.agregarProducto(Producto(2, "Mesa", 50.0, 1))
-    
-    val slot = slot<Double>()
-    
-    every { stockService.verificarStock(2, 1) } returns true
-    every { pagoService.procesarPago(capture(slot)) } returns true // ← capturás acá
-    every { stockService.reducirStock(2, 1) } just runs
-    
-    // Act
-    carritoVersionPro.realizarCompra()
-    
-    // Assert
-    TestCase.assertEquals(50.0, slot.captured) // ← verificás después de realizarCompra
-    
-    verifyOrder {
-      stockService.verificarStock(2, 1)
-      pagoService.procesarPago(50.0)
-      stockService.reducirStock(2, 1)
-    }
-  }
-  
-  @Test
-  fun `capturamos con slot el productId que se paso a reducirStock`() {
-    //arrange
-    carritoVersionPro.agregarProducto(Producto(6, "Mesa", 50.0, 2))
-    
-    val slot = slot<Int>()
-    
-    every { stockService.verificarStock(6, 2) } returns true
-    every { pagoService.procesarPago(any()) } returns true
-    every { stockService.reducirStock(capture(slot), any()) } just runs
-    
-    //act
-    carritoVersionPro.realizarCompra()
-    
-    //assert
-    TestCase.assertEquals(6, slot.captured)
-    DriverManager.println("el id del producto que se redujo es: ${slot.captured}")
-    verify(exactly = 1) { stockService.reducirStock(6, any()) }
   }
   
   //VERIFICACION DE ORDEN
@@ -381,7 +405,7 @@ class CarritoVersionProTest {
     
     carritoVersionPro.realizarCompra()
     
-    TestCase.assertEquals(390.0, resultado)
+    assertEquals(390.0, resultado)
     
     verifyOrder {
       stockService.verificarStock(1, 2)
