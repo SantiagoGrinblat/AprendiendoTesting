@@ -161,7 +161,7 @@ class CarritoVersionProTest {
     assertEquals(80.0, carritoVersionPro.calcularTotal())
   }
   
-  //CALCULOS DE TOTALES =
+  //CALCULOS TOTALES =
   //primero los calculos simples
   @Test
   fun `si hay stock, el pago es aprobado y si el cupon es valido, se actualiza el precio con el descuento aplicado`() {
@@ -186,13 +186,10 @@ class CarritoVersionProTest {
   //Todos los errores relacionados con descuentos
   @Test
   fun `cupon expirado devuelve una excepcion`() {
-    //arrange
     carritoVersionPro.agregarProducto(Producto(2, "Mesa", 50.0, 3))
     
-    //act
     every { descuentoService.validarCupon("DESCUENTO10") } throws IllegalArgumentException("Cupon expirado")
     
-    //assert
     assertThrows<IllegalArgumentException> {
       carritoVersionPro.calcularTotalConDescuento("DESCUENTO10")
     }
@@ -200,13 +197,10 @@ class CarritoVersionProTest {
   
   @Test
   fun `cupon inexistente devuelve una excepcion`() {
-    //arrange
     carritoVersionPro.agregarProducto(Producto(2, "Mesa", 50.0, 3))
     
-    //act
     every { descuentoService.validarCupon("DESCUENTO10") } throws IllegalArgumentException("Cupon inexistente")
     
-    //assert
     assertThrows<IllegalArgumentException> {
       carritoVersionPro.calcularTotalConDescuento("DESCUENTO10")
     }
@@ -258,6 +252,10 @@ class CarritoVersionProTest {
     assertEquals(243.0, resultadoConDescuentoDe10)
     assertEquals(135.0, resultadoConDescuentoDe50)
     
+    //answers en lugar de returns porque la respuesta
+    //depende del valor que llega, no es siempre la misma
+    //con returns siempre devolveria lo mismo sin importar el cupon
+    //con answers podemos tomar decisiones segun el argumento recibido
     //se podria tambien usar rangos, pero el queremos que el descuento del cupon sea de un monto exacto.
     //si se podria agregar mas descuento si tenemos mas productos.
   }
